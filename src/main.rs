@@ -7,7 +7,7 @@ use crossterm::{
     Result,
 };
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Masu {
     Empty,
     Black,
@@ -18,46 +18,48 @@ fn main() -> Result<()> {
     let mut field = [[Masu::Empty; 8]; 8];
     let mut cursor = (0, 0);
     enable_raw_mode()?;
-    execute!(std::io::stderr(), Hide, EnterAlternateScreen)?;
+    execute!(std::io::stdout(), Hide, EnterAlternateScreen,)?;
     loop {
-        execute!(std::io::stderr(), MoveTo(0, 0),)?;
-        for i in 0..8 {
-            for j in 0..8 {
-                if i == cursor.0 && j == cursor.1 {
-                    execute!(std::io::stderr(), SetBackgroundColor(Color::Grey))?;
+        execute!(std::io::stdout(), MoveTo(0, 0))?;
+        for y in 0..8 {
+            for x in 0..8 {
+                if x == cursor.0 && y == cursor.1 {
+                    execute!(std::io::stdout(), SetBackgroundColor(Color::Reset),)?;
                 } else {
-                    execute!(std::io::stderr(), SetBackgroundColor(Color::DarkGreen))?;
+                    execute!(std::io::stdout(), SetBackgroundColor(Color::DarkGreen),)?;
                 }
-                match field[i][j] {
-                    Masu::Empty => {
-                        execute!(std::io::stderr(), Print('　'))?;
-                    }
-                    Masu::Black => {
-                        execute!(std::io::stderr(), Print('⚫'))?;
-                    }
-                    Masu::White => {
-                        execute!(std::io::stderr(), Print('⚪'))?;
-                    }
+                match field[y][x] {
+                    Masu::Empty => execute!(std::io::stdout(), Print("  "))?,
+                    Masu::Black => execute!(std::io::stdout(), Print('⚫'))?,
+                    Masu::White => execute!(std::io::stdout(), Print('⚪'))?,
                 }
             }
-            execute!(std::io::stderr(), Print("\n"))?;
+            execute!(std::io::stdout(), Print("\n"))?;
         }
         match read()? {
             Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => break,
             Event::Key(KeyEvent {
-                code: KeyCode::Left,
-                ..
+                code: KeyCode::Up, ..
             }) => {
-                if cursor.1 != 0 {
+                if cursor.1 > 0 {
                     cursor.1 -= 1;
                 }
             }
             Event::Key(KeyEvent {
-                code: KeyCode::Up, ..
+                code: KeyCode::Down,
+                ..
             }) => {
-                if cursor.0 != 0 {
+                if cursor.1 < 7 {
+                    cursor.1 += 1;
+                }
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Left,
+                ..
+            }) => {
+                if cursor.0 > 0 {
                     cursor.0 -= 1;
                 }
             }
@@ -65,40 +67,27 @@ fn main() -> Result<()> {
                 code: KeyCode::Right,
                 ..
             }) => {
-                if cursor.1 != 7 {
-                    cursor.1 += 1;
-                }
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Down,
-                ..
-            }) => {
-                if cursor.0 != 7 {
+                if cursor.0 < 7 {
                     cursor.0 += 1;
                 }
             }
             Event::Key(KeyEvent {
-                code: KeyCode::Char('w'),
+                code: KeyCode::Backspace,
                 ..
-            }) => {
-                field[cursor.0][cursor.1] = Masu::White;
-            }
+            }) => field[cursor.1][cursor.0] = Masu::Empty,
             Event::Key(KeyEvent {
                 code: KeyCode::Char('b'),
                 ..
-            }) => {
-                field[cursor.0][cursor.1] = Masu::Black;
-            }
+            }) => field[cursor.1][cursor.0] = Masu::Black,
             Event::Key(KeyEvent {
-                code: KeyCode::Backspace,
+                code: KeyCode::Char('w'),
                 ..
-            }) => {
-                field[cursor.0][cursor.1] = Masu::Empty;
-            }
+            }) => field[cursor.1][cursor.0] = Masu::White,
             _ => continue,
         }
     }
-    execute!(std::io::stderr(), Show, LeaveAlternateScreen)?;
+
+    execute!(std::io::stdout(), Show, LeaveAlternateScreen)?;
     disable_raw_mode()?;
-    return Ok(());
+    Ok(())
 }
