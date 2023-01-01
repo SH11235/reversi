@@ -100,8 +100,16 @@ fn view<T: std::io::Write>(
     Ok(())
 }
 
+fn init_field(field: &mut [[Masu; 8]; 8]) {
+    field[3][3] = Masu::Black;
+    field[4][4] = Masu::Black;
+    field[3][4] = Masu::White;
+    field[4][3] = Masu::White;
+}
+
 fn main() -> Result<()> {
     let mut field = [[Masu::Empty; 8]; 8];
+    init_field(&mut field);
     let mut cursor = (0, 0);
     let mut end = false;
     enable_raw_mode()?;
