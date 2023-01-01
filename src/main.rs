@@ -116,6 +116,9 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use std::fs::File;
+    use std::io::Read;
+
     #[test]
     fn input_test() {
         let mut field = [[Masu::Empty; 8]; 8];
@@ -149,5 +152,24 @@ mod tests {
         let esc = Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         super::input(esc, &mut field, &mut cursor, &mut end).unwrap();
         assert!(end);
+    }
+
+    #[test]
+    fn view_test() {
+        let mut field = [[Masu::Empty; 8]; 8];
+        let cursor = (0, 0);
+        field[3][3] = Masu::Black;
+        field[4][4] = Masu::Black;
+        field[3][4] = Masu::White;
+        field[4][3] = Masu::White;
+        let mut buf = Vec::<u8>::new();
+        let mut assert_buf = Vec::<u8>::new();
+        super::view(&mut buf, &field, &cursor).unwrap();
+        // let mut f = File::create("testdata/initview").unwrap();
+        // use std::io::Write;
+        // f.write_all(buf.into_boxed_slice().as_ref()).unwrap();
+        let mut f = File::open("testdata/initview").unwrap();
+        f.read_to_end(&mut assert_buf).unwrap();
+        assert!(buf == assert_buf);
     }
 }
