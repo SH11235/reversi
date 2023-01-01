@@ -62,11 +62,17 @@ fn input(
         Event::Key(KeyEvent {
             code: KeyCode::Char('b'),
             ..
-        }) => field[cursor.1][cursor.0] = Masu::Black,
+        }) => {
+            field[cursor.1][cursor.0] = Masu::Black;
+            auto_reverse(field, *cursor)
+        }
         Event::Key(KeyEvent {
             code: KeyCode::Char('w'),
             ..
-        }) => field[cursor.1][cursor.0] = Masu::White,
+        }) => {
+            field[cursor.1][cursor.0] = Masu::White;
+            auto_reverse(field, *cursor)
+        }
         _ => {}
     }
     Ok(())
@@ -105,6 +111,60 @@ fn init_field(field: &mut [[Masu; 8]; 8]) {
     field[4][4] = Masu::Black;
     field[3][4] = Masu::White;
     field[4][3] = Masu::White;
+}
+
+fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
+    // 8方向に対して、反転できるかを調べる
+    let directions = [
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+        (0, -1),
+        (0, 1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+    ];
+    for direction in directions.iter() {
+        let mut x = point.0 as i32;
+        let mut y = point.1 as i32;
+        let mut reverse = false;
+        // 反転するかを調べる
+        loop {
+            x += direction.0;
+            y += direction.1;
+            // 盤面外に出たら終了
+            if x < 0 || x > 7 || y < 0 || y > 7 {
+                break;
+            }
+            // 空白マスなら終了
+            if field[y as usize][x as usize] == Masu::Empty {
+                break;
+            }
+            // 自分の色なら反転
+            if field[y as usize][x as usize] == field[point.1][point.0] {
+                reverse = true;
+                break;
+            }
+        }
+        if reverse {
+            x = point.0 as i32;
+            y = point.1 as i32;
+            loop {
+                x += direction.0;
+                y += direction.1;
+                if x < 0 || x > 7 || y < 0 || y > 7 {
+                    break;
+                }
+                // 自分の色にあたったら終了
+                if field[y as usize][x as usize] == field[point.1][point.0] {
+                    break;
+                }
+                // 反転
+                field[y as usize][x as usize] = field[point.1][point.0];
+            }
+        }
+    }
 }
 
 fn main() -> Result<()> {
