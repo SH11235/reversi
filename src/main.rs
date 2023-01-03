@@ -107,6 +107,7 @@ fn view<T: std::io::Write>(
 }
 
 fn init_field(field: &mut [[Masu; 8]; 8]) {
+    *field = [[Masu::Empty; 8]; 8];
     field[3][3] = Masu::Black;
     field[4][4] = Masu::Black;
     field[3][4] = Masu::White;
@@ -128,39 +129,27 @@ fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
     for direction in directions.iter() {
         let mut x = point.0 as i32;
         let mut y = point.1 as i32;
-        let mut reverse = false;
-        // 反転するかを調べる
-        loop {
+        let mut reverse_count = 0;
+        let reverse_count = loop {
+            reverse_count += 1;
             x += direction.0;
             y += direction.1;
-            // 盤面外に出たら終了
             if x < 0 || x > 7 || y < 0 || y > 7 {
-                break;
+                break 0;
             }
-            // 空白マスなら終了
             if field[y as usize][x as usize] == Masu::Empty {
-                break;
+                break 0;
             }
-            // 自分の色なら反転
             if field[y as usize][x as usize] == field[point.1][point.0] {
-                reverse = true;
-                break;
+                break reverse_count;
             }
-        }
-        if reverse {
+        };
+        if reverse_count > 0 {
             x = point.0 as i32;
             y = point.1 as i32;
-            loop {
+            for _ in 0..reverse_count {
                 x += direction.0;
                 y += direction.1;
-                if x < 0 || x > 7 || y < 0 || y > 7 {
-                    break;
-                }
-                // 自分の色にあたったら終了
-                if field[y as usize][x as usize] == field[point.1][point.0] {
-                    break;
-                }
-                // 反転
                 field[y as usize][x as usize] = field[point.1][point.0];
             }
         }
@@ -236,12 +225,39 @@ mod tests {
         field[4][3] = Masu::White;
         let mut buf = Vec::<u8>::new();
         let mut assert_buf = Vec::<u8>::new();
-        super::view(&mut buf, &field, &cursor).unwrap();
+        view(&mut buf, &field, &cursor).unwrap();
         // let mut f = File::create("testdata/initview").unwrap();
         // use std::io::Write;
         // f.write_all(buf.into_boxed_slice().as_ref()).unwrap();
         let mut f = File::open("testdata/initview").unwrap();
         f.read_to_end(&mut assert_buf).unwrap();
         assert!(buf == assert_buf);
+    }
+
+    #[test]
+    fn init_field_test() {
+        let mut field = [[Masu::Empty; 8]; 8];
+        init_field(&mut field);
+        assert!(field[3][3] == Masu::Black);
+        assert!(field[4][4] == Masu::Black);
+        assert!(field[3][4] == Masu::White);
+        assert!(field[4][3] == Masu::White);
+    }
+    #[test]
+    fn auto_reverse_test() {
+        let mut field = [[Masu::Empty; 8]; 8];
+        init_field(&mut field);
+        field[4][5] = Masu::White;
+        auto_reverse(&mut field, (5, 4));
+        assert!(field[4][4] == Masu::White);
+
+        init_field(&mut field);
+        field[3][5] = Masu::White;
+        field[3][6] = Masu::White;
+        field[3][7] = Masu::Black;
+        auto_reverse(&mut field, (7, 3));
+        assert!(field[3][5] == Masu::Black);
+        assert!(field[3][6] == Masu::Black);
+        assert!(field[3][7] == Masu::Black);
     }
 }
