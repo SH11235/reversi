@@ -14,16 +14,33 @@ enum Masu {
     White,
 }
 
+enum Turn {
+    Black,
+    White,
+}
+
 fn input(
     event: Event,
     field: &mut [[Masu; 8]; 8],
     cursor: &mut (usize, usize),
     end: &mut bool,
+    turn: &mut Turn,
 ) -> Result<()> {
     match event {
         Event::Key(KeyEvent {
             code: KeyCode::Esc, ..
         }) => *end = true,
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('p'),
+            ..
+        }) => match turn {
+            Turn::Black => {
+                *turn = Turn::White;
+            }
+            Turn::White => {
+                *turn = Turn::Black;
+            }
+        },
         Event::Key(KeyEvent {
             code: KeyCode::Up, ..
         }) => {
@@ -60,18 +77,19 @@ fn input(
             ..
         }) => field[cursor.1][cursor.0] = Masu::Empty,
         Event::Key(KeyEvent {
-            code: KeyCode::Char('b'),
+            code: KeyCode::Enter,
             ..
-        }) => {
-            field[cursor.1][cursor.0] = Masu::Black;
-            auto_reverse(field, *cursor)
-        }
-        Event::Key(KeyEvent {
-            code: KeyCode::Char('w'),
-            ..
-        }) => {
-            field[cursor.1][cursor.0] = Masu::White;
-            auto_reverse(field, *cursor)
+        }) => match turn {
+            Turn::Black => {
+                field[cursor.1][cursor.0] = Masu::Black;
+                auto_reverse(field, *cursor);
+                *turn = Turn::White;
+            }
+            Turn::White => {
+                field[cursor.1][cursor.0] = Masu::White;
+                auto_reverse(field, *cursor);
+                *turn = Turn::Black;
+            }
         }
         _ => {}
     }
@@ -82,6 +100,7 @@ fn view<T: std::io::Write>(
     output: &mut T,
     field: &[[Masu; 8]; 8],
     cursor: &(usize, usize),
+    turn: &Turn
 ) -> Result<()> {
     execute!(output, MoveTo(0, 0))?;
     for y in 0..8 {
@@ -102,6 +121,10 @@ fn view<T: std::io::Write>(
             }
         }
         execute!(output, Print("\n"))?;
+    }
+    match turn {
+        Turn::Black => execute!(output, Print("黒のターンです"))?,
+        Turn::White => execute!(output, Print("白のターンです"))?,
     }
     Ok(())
 }
@@ -161,11 +184,12 @@ fn main() -> Result<()> {
     init_field(&mut field);
     let mut cursor = (0, 0);
     let mut end = false;
+    let mut turn = Turn::White;
     enable_raw_mode()?;
     execute!(std::io::stdout(), Hide, EnterAlternateScreen,)?;
     while !end {
-        view(&mut std::io::stdout(), &field, &cursor)?;
-        input(read()?, &mut field, &mut cursor, &mut end)?;
+        view(&mut std::io::stdout(), &field, &cursor, &turn)?;
+        input(read()?, &mut field, &mut cursor, &mut end, &mut turn)?;
     }
 
     execute!(std::io::stdout(), Show, LeaveAlternateScreen)?;
@@ -185,33 +209,34 @@ mod tests {
         let mut field = [[Masu::Empty; 8]; 8];
         let mut cursor = (0, 0);
         let mut end = false;
-        let wkey = Event::Key(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE));
-        super::input(wkey, &mut field, &mut cursor, &mut end).unwrap();
+        let mut turn = Turn::White;
+        let white_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        super::input(white_turn_enter, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(field[0][0] == Masu::White);
         let rightkey = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        super::input(rightkey, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(cursor.0 == 1);
         assert!(cursor.1 == 0);
         let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        super::input(downkey, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(cursor.0 == 1);
         assert!(cursor.1 == 1);
-        let bkey = Event::Key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
-        super::input(bkey, &mut field, &mut cursor, &mut end).unwrap();
+        let black_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        super::input(black_turn_enter, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(field[1][1] == Masu::Black);
         let leftkey = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-        super::input(leftkey, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(leftkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(cursor.0 == 0);
         assert!(cursor.1 == 1);
         let upkey = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        super::input(upkey, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(upkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(cursor.0 == 0);
         assert!(cursor.1 == 0);
         let backspace = Event::Key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
-        super::input(backspace, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(backspace, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(field[0][0] == Masu::Empty);
         let esc = Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
-        super::input(esc, &mut field, &mut cursor, &mut end).unwrap();
+        super::input(esc, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(end);
     }
 
@@ -219,13 +244,14 @@ mod tests {
     fn view_test() {
         let mut field = [[Masu::Empty; 8]; 8];
         let cursor = (0, 0);
+        let turn = Turn::White;
         field[3][3] = Masu::Black;
         field[4][4] = Masu::Black;
         field[3][4] = Masu::White;
         field[4][3] = Masu::White;
         let mut buf = Vec::<u8>::new();
         let mut assert_buf = Vec::<u8>::new();
-        view(&mut buf, &field, &cursor).unwrap();
+        view(&mut buf, &field, &cursor, &turn).unwrap();
         // let mut f = File::create("testdata/initview").unwrap();
         // use std::io::Write;
         // f.write_all(buf.into_boxed_slice().as_ref()).unwrap();
