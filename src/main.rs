@@ -69,9 +69,9 @@ fn input(
             code: KeyCode::Enter,
             ..
         }) => {
-            if check_putable(&field, &cursor, &turn_color) {
+            if check_putable(&field, &cursor, *turn_color) {
                 field[cursor.1][cursor.0] = Masu::Putted(*turn_color);
-                auto_reverse(field, *cursor);
+                auto_reverse(field, *cursor, *turn_color);
                 *turn_color = get_another_color(*turn_color);
             }
         }
@@ -121,8 +121,8 @@ fn init_field(field: &mut [[Masu; 8]; 8]) {
     field[4][3] = Masu::Putted(DiscColor::White);
 }
 
-fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
-    get_reversable_masu(field, &point, &field[point.1][point.0])
+fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize), turn_color: DiscColor) {
+    get_reversable_masu(field, &point, turn_color)
         .iter()
         .for_each(|p| {
             field[p.1][p.0] = field[point.1][point.0];
@@ -132,7 +132,7 @@ fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
 fn get_reversable_masu(
     field: &[[Masu; 8]; 8],
     point: &(usize, usize),
-    color: &Masu,
+    color: DiscColor,
 ) -> Vec<(usize, usize)> {
     let mut result: Vec<(usize, usize)> = vec![];
     let directions = [
@@ -159,7 +159,7 @@ fn get_reversable_masu(
             if field[y as usize][x as usize] == Masu::Empty {
                 break 0;
             }
-            if field[y as usize][x as usize] == *color {
+            if field[y as usize][x as usize] == Masu::Putted(color) {
                 break reverse_count;
             }
         };
@@ -172,15 +172,11 @@ fn get_reversable_masu(
     result
 }
 
-fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), color: &DiscColor) -> bool {
+fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), turn_color: DiscColor) -> bool {
     if field[point.0][point.1] != Masu::Empty {
         return false;
     }
-    let turn_color = match color {
-        DiscColor::Black => Masu::Putted(DiscColor::Black),
-        DiscColor::White => Masu::Putted(DiscColor::White),
-    };
-    if get_reversable_masu(field, point, &turn_color).len() == 0 {
+    if get_reversable_masu(field, point, turn_color).len() == 0 {
         return false;
     }
     return true;
@@ -313,14 +309,14 @@ mod tests {
         let mut field = [[Masu::Empty; 8]; 8];
         init_field(&mut field);
         field[4][5] = Masu::Putted(DiscColor::White);
-        auto_reverse(&mut field, (5, 4));
+        auto_reverse(&mut field, (5, 4), DiscColor::White);
         assert!(field[4][4] == Masu::Putted(DiscColor::White));
 
         init_field(&mut field);
         field[3][5] = Masu::Putted(DiscColor::White);
         field[3][6] = Masu::Putted(DiscColor::White);
         field[3][7] = Masu::Putted(DiscColor::Black);
-        auto_reverse(&mut field, (7, 3));
+        auto_reverse(&mut field, (7, 3), DiscColor::Black);
         assert!(field[3][5] == Masu::Putted(DiscColor::Black));
         assert!(field[3][6] == Masu::Putted(DiscColor::Black));
         assert!(field[3][7] == Masu::Putted(DiscColor::Black));
@@ -330,7 +326,22 @@ mod tests {
         let mut field = [[Masu::Empty; 8]; 8];
         init_field(&mut field);
         let color = DiscColor::Black;
-        assert!(!check_putable(&field, &(0, 0), &color));
-        assert!(check_putable(&field, &(4, 2), &color));
+        assert!(!check_putable(&field, &(0, 0), color));
+        assert!(check_putable(&field, &(4, 2), color));
+    }
+    #[test]
+    fn get_reversable_masu_test() {
+        let mut field = [[Masu::Empty; 8]; 8];
+        init_field(&mut field);
+        let color = DiscColor::White;
+        let point = (2, 3);
+        let mut reversable_masu = Vec::<(usize, usize)>::new();
+        reversable_masu.push((3, 3));
+        assert!(get_reversable_masu(&field, &point, color) == reversable_masu);
+    }
+    #[test]
+    fn get_another_color_test() {
+        assert!(get_another_color(DiscColor::White) == DiscColor::Black);
+        assert!(get_another_color(DiscColor::Black) == DiscColor::White);
     }
 }
