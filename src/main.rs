@@ -10,11 +10,11 @@ use crossterm::{
 #[derive(Clone, Copy, PartialEq)]
 enum Masu {
     Empty,
-    Black,
-    White,
+    Putted(DiscColor),
 }
 
-enum Turn {
+#[derive(Clone, Copy, PartialEq)]
+enum DiscColor {
     Black,
     White,
 }
@@ -24,7 +24,7 @@ fn input(
     field: &mut [[Masu; 8]; 8],
     cursor: &mut (usize, usize),
     end: &mut bool,
-    turn: &mut Turn,
+    color: &mut DiscColor,
 ) -> Result<()> {
     match event {
         Event::Key(KeyEvent {
@@ -33,12 +33,12 @@ fn input(
         Event::Key(KeyEvent {
             code: KeyCode::Char('p'),
             ..
-        }) => match turn {
-            Turn::Black => {
-                *turn = Turn::White;
+        }) => match color {
+            DiscColor::Black => {
+                *color = DiscColor::White;
             }
-            Turn::White => {
-                *turn = Turn::Black;
+            DiscColor::White => {
+                *color = DiscColor::Black;
             }
         },
         Event::Key(KeyEvent {
@@ -76,17 +76,17 @@ fn input(
             code: KeyCode::Enter,
             ..
         }) => {
-            if check_putable(&field, &cursor, &turn) {
-                match turn {
-                    Turn::Black => {
-                        field[cursor.1][cursor.0] = Masu::Black;
+            if check_putable(&field, &cursor, &color) {
+                match color {
+                    DiscColor::Black => {
+                        field[cursor.1][cursor.0] = Masu::Putted(*color);
                         auto_reverse(field, *cursor);
-                        *turn = Turn::White;
+                        *color = DiscColor::White;
                     }
-                    Turn::White => {
-                        field[cursor.1][cursor.0] = Masu::White;
+                    DiscColor::White => {
+                        field[cursor.1][cursor.0] = Masu::Putted(*color);
                         auto_reverse(field, *cursor);
-                        *turn = Turn::Black;
+                        *color = DiscColor::Black;
                     }
                 }
             }
@@ -100,7 +100,7 @@ fn view<T: std::io::Write>(
     output: &mut T,
     field: &[[Masu; 8]; 8],
     cursor: &(usize, usize),
-    turn: &Turn,
+    color: &DiscColor,
 ) -> Result<()> {
     execute!(output, MoveTo(0, 0))?;
     for y in 0..8 {
@@ -116,25 +116,25 @@ fn view<T: std::io::Write>(
             }
             match field[y][x] {
                 Masu::Empty => execute!(output, Print("  "))?,
-                Masu::Black => execute!(output, Print('⚫'))?,
-                Masu::White => execute!(output, Print('⚪'))?,
+                Masu::Putted(DiscColor::Black) => execute!(output, Print('⚫'))?,
+                Masu::Putted(DiscColor::White) => execute!(output, Print('⚪'))?,
             }
         }
         execute!(output, Print("\n"))?;
     }
-    match turn {
-        Turn::Black => execute!(output, Print("黒のターンです"))?,
-        Turn::White => execute!(output, Print("白のターンです"))?,
+    match color {
+        DiscColor::Black => execute!(output, Print("黒のターンです"))?,
+        DiscColor::White => execute!(output, Print("白のターンです"))?,
     }
     Ok(())
 }
 
 fn init_field(field: &mut [[Masu; 8]; 8]) {
     *field = [[Masu::Empty; 8]; 8];
-    field[3][3] = Masu::Black;
-    field[4][4] = Masu::Black;
-    field[3][4] = Masu::White;
-    field[4][3] = Masu::White;
+    field[3][3] = Masu::Putted(DiscColor::Black);
+    field[4][4] = Masu::Putted(DiscColor::Black);
+    field[3][4] = Masu::Putted(DiscColor::White);
+    field[4][3] = Masu::Putted(DiscColor::White);
 }
 
 fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
@@ -188,13 +188,13 @@ fn get_reversable_masu(
     result
 }
 
-fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), turn: &Turn) -> bool {
+fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), color: &DiscColor) -> bool {
     if field[point.0][point.1] != Masu::Empty {
         return false;
     }
-    let turn_color = match turn {
-        Turn::Black => Masu::Black,
-        Turn::White => Masu::White,
+    let turn_color = match color {
+        DiscColor::Black => Masu::Putted(DiscColor::Black),
+        DiscColor::White => Masu::Putted(DiscColor::White),
     };
     if get_reversable_masu(field, point, &turn_color).len() == 0 {
         return false;
@@ -207,14 +207,13 @@ fn main() -> Result<()> {
     init_field(&mut field);
     let mut cursor = (0, 0);
     let mut end = false;
-    let mut turn = Turn::White;
+    let mut color = DiscColor::White;
     enable_raw_mode()?;
     execute!(std::io::stdout(), Hide, EnterAlternateScreen,)?;
     while !end {
-        view(&mut std::io::stdout(), &field, &cursor, &turn)?;
-        input(read()?, &mut field, &mut cursor, &mut end, &mut turn)?;
+        view(&mut std::io::stdout(), &field, &cursor, &color)?;
+        input(read()?, &mut field, &mut cursor, &mut end, &mut color)?;
     }
-
     execute!(std::io::stdout(), Show, LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
@@ -233,25 +232,25 @@ mod tests {
         init_field(&mut field);
         let mut cursor = (0, 0);
         let mut end = false;
-        let mut turn = Turn::White;
+        let mut color = DiscColor::White;
         let rightkey = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 1);
         assert!(cursor.1 == 0);
         let rightkey = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 2);
         assert!(cursor.1 == 0);
         let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 2);
         assert!(cursor.1 == 1);
         let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 2);
         assert!(cursor.1 == 2);
         let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 2);
         assert!(cursor.1 == 3);
         let white_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -260,13 +259,13 @@ mod tests {
             &mut field,
             &mut cursor,
             &mut end,
-            &mut turn,
+            &mut color,
         )
         .unwrap();
-        assert!(field[3][2] == Masu::White);
-        assert!(field[3][3] == Masu::White);
+        assert!(field[3][2] == Masu::Putted(DiscColor::White));
+        assert!(field[3][3] == Masu::Putted(DiscColor::White));
         let upkey = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        super::input(upkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(upkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 2);
         assert!(cursor.1 == 2);
         let black_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -275,17 +274,17 @@ mod tests {
             &mut field,
             &mut cursor,
             &mut end,
-            &mut turn,
+            &mut color,
         )
         .unwrap();
-        assert!(field[2][2] == Masu::Black);
-        assert!(field[3][3] == Masu::Black);
+        assert!(field[2][2] == Masu::Putted(DiscColor::Black));
+        assert!(field[3][3] == Masu::Putted(DiscColor::Black));
         let leftkey = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-        super::input(leftkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(leftkey, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(cursor.0 == 1);
         assert!(cursor.1 == 2);
         let esc = Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
-        super::input(esc, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        super::input(esc, &mut field, &mut cursor, &mut end, &mut color).unwrap();
         assert!(end);
     }
 
@@ -293,14 +292,14 @@ mod tests {
     fn view_test() {
         let mut field = [[Masu::Empty; 8]; 8];
         let cursor = (0, 0);
-        let turn = Turn::White;
-        field[3][3] = Masu::Black;
-        field[4][4] = Masu::Black;
-        field[3][4] = Masu::White;
-        field[4][3] = Masu::White;
+        let color = DiscColor::White;
+        field[3][3] = Masu::Putted(DiscColor::Black);
+        field[4][4] = Masu::Putted(DiscColor::Black);
+        field[3][4] = Masu::Putted(DiscColor::White);
+        field[4][3] = Masu::Putted(DiscColor::White);
         let mut buf = Vec::<u8>::new();
         let mut assert_buf = Vec::<u8>::new();
-        view(&mut buf, &field, &cursor, &turn).unwrap();
+        view(&mut buf, &field, &cursor, &color).unwrap();
         // let mut f = File::create("testdata/initview").unwrap();
         // use std::io::Write;
         // f.write_all(buf.into_boxed_slice().as_ref()).unwrap();
@@ -313,34 +312,34 @@ mod tests {
     fn init_field_test() {
         let mut field = [[Masu::Empty; 8]; 8];
         init_field(&mut field);
-        assert!(field[3][3] == Masu::Black);
-        assert!(field[4][4] == Masu::Black);
-        assert!(field[3][4] == Masu::White);
-        assert!(field[4][3] == Masu::White);
+        assert!(field[3][3] == Masu::Putted(DiscColor::Black));
+        assert!(field[4][4] == Masu::Putted(DiscColor::Black));
+        assert!(field[3][4] == Masu::Putted(DiscColor::White));
+        assert!(field[4][3] == Masu::Putted(DiscColor::White));
     }
     #[test]
     fn auto_reverse_test() {
         let mut field = [[Masu::Empty; 8]; 8];
         init_field(&mut field);
-        field[4][5] = Masu::White;
+        field[4][5] = Masu::Putted(DiscColor::White);
         auto_reverse(&mut field, (5, 4));
-        assert!(field[4][4] == Masu::White);
+        assert!(field[4][4] == Masu::Putted(DiscColor::White));
 
         init_field(&mut field);
-        field[3][5] = Masu::White;
-        field[3][6] = Masu::White;
-        field[3][7] = Masu::Black;
+        field[3][5] = Masu::Putted(DiscColor::White);
+        field[3][6] = Masu::Putted(DiscColor::White);
+        field[3][7] = Masu::Putted(DiscColor::Black);
         auto_reverse(&mut field, (7, 3));
-        assert!(field[3][5] == Masu::Black);
-        assert!(field[3][6] == Masu::Black);
-        assert!(field[3][7] == Masu::Black);
+        assert!(field[3][5] == Masu::Putted(DiscColor::Black));
+        assert!(field[3][6] == Masu::Putted(DiscColor::Black));
+        assert!(field[3][7] == Masu::Putted(DiscColor::Black));
     }
     #[test]
     fn check_putable_test() {
         let mut field = [[Masu::Empty; 8]; 8];
         init_field(&mut field);
-        let turn = Turn::Black;
-        assert!(!check_putable(&field, &(0, 0), &turn));
-        assert!(check_putable(&field, &(4, 2), &turn));
+        let color = DiscColor::Black;
+        assert!(!check_putable(&field, &(0, 0), &color));
+        assert!(check_putable(&field, &(4, 2), &color));
     }
 }
