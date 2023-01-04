@@ -138,7 +138,19 @@ fn init_field(field: &mut [[Masu; 8]; 8]) {
 }
 
 fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
-    // 8方向に対して、反転できるかを調べる
+    get_reversable_masu(field, &point, &field[point.1][point.0])
+        .iter()
+        .for_each(|p| {
+            field[p.1][p.0] = field[point.1][point.0];
+        });
+}
+
+fn get_reversable_masu(
+    field: &[[Masu; 8]; 8],
+    point: &(usize, usize),
+    color: &Masu,
+) -> Vec<(usize, usize)> {
+    let mut result: Vec<(usize, usize)> = vec![];
     let directions = [
         (-1, -1),
         (-1, 0),
@@ -163,60 +175,31 @@ fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
             if field[y as usize][x as usize] == Masu::Empty {
                 break 0;
             }
-            if field[y as usize][x as usize] == field[point.1][point.0] {
+            if field[y as usize][x as usize] == *color {
                 break reverse_count;
             }
         };
-        if reverse_count > 0 {
-            x = point.0 as i32;
-            y = point.1 as i32;
-            for _ in 0..reverse_count {
-                x += direction.0;
-                y += direction.1;
-                field[y as usize][x as usize] = field[point.1][point.0];
-            }
+        for j in 1..reverse_count {
+            let x = point.0 as i32 + direction.0 * j;
+            let y = point.1 as i32 + direction.1 * j;
+            result.push((x as usize, y as usize));
         }
     }
+    result
 }
 
 fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), turn: &Turn) -> bool {
-    let directions = [
-        (-1, -1),
-        (-1, 0),
-        (-1, 1),
-        (0, -1),
-        (0, 1),
-        (1, -1),
-        (1, 0),
-        (1, 1),
-    ];
+    if field[point.0][point.1] != Masu::Empty {
+        return false;
+    }
     let turn_color = match turn {
         Turn::Black => Masu::Black,
         Turn::White => Masu::White,
     };
-    for direction in directions.iter() {
-        let mut x = point.0 as i32;
-        let mut y = point.1 as i32;
-        let mut reverse_count = 0;
-        let reverse_count = loop {
-            reverse_count += 1;
-            x += direction.0;
-            y += direction.1;
-            if x < 0 || x > 7 || y < 0 || y > 7 {
-                break 0;
-            }
-            if field[y as usize][x as usize] == Masu::Empty {
-                break 0;
-            }
-            if field[y as usize][x as usize] == turn_color {
-                break reverse_count;
-            }
-        };
-        if reverse_count > 1 {
-            return true;
-        }
+    if get_reversable_masu(field, point, &turn_color).len() == 0 {
+        return false;
     }
-    false
+    return true;
 }
 
 fn main() -> Result<()> {
