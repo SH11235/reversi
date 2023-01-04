@@ -24,7 +24,7 @@ fn input(
     field: &mut [[Masu; 8]; 8],
     cursor: &mut (usize, usize),
     end: &mut bool,
-    color: &mut DiscColor,
+    turn_color: &mut DiscColor,
 ) -> Result<()> {
     match event {
         Event::Key(KeyEvent {
@@ -33,14 +33,7 @@ fn input(
         Event::Key(KeyEvent {
             code: KeyCode::Char('p'),
             ..
-        }) => match color {
-            DiscColor::Black => {
-                *color = DiscColor::White;
-            }
-            DiscColor::White => {
-                *color = DiscColor::Black;
-            }
-        },
+        }) => *turn_color = get_another_color(*turn_color),
         Event::Key(KeyEvent {
             code: KeyCode::Up, ..
         }) => {
@@ -76,19 +69,10 @@ fn input(
             code: KeyCode::Enter,
             ..
         }) => {
-            if check_putable(&field, &cursor, &color) {
-                match color {
-                    DiscColor::Black => {
-                        field[cursor.1][cursor.0] = Masu::Putted(*color);
-                        auto_reverse(field, *cursor);
-                        *color = DiscColor::White;
-                    }
-                    DiscColor::White => {
-                        field[cursor.1][cursor.0] = Masu::Putted(*color);
-                        auto_reverse(field, *cursor);
-                        *color = DiscColor::Black;
-                    }
-                }
+            if check_putable(&field, &cursor, &turn_color) {
+                field[cursor.1][cursor.0] = Masu::Putted(*turn_color);
+                auto_reverse(field, *cursor);
+                *turn_color = get_another_color(*turn_color);
             }
         }
         _ => {}
@@ -200,6 +184,13 @@ fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), color: &DiscCol
         return false;
     }
     return true;
+}
+
+fn get_another_color(color: DiscColor) -> DiscColor {
+    match color {
+        DiscColor::Black => DiscColor::White,
+        DiscColor::White => DiscColor::Black,
+    }
 }
 
 fn main() -> Result<()> {
