@@ -73,22 +73,22 @@ fn input(
             }
         }
         Event::Key(KeyEvent {
-            code: KeyCode::Backspace,
-            ..
-        }) => field[cursor.1][cursor.0] = Masu::Empty,
-        Event::Key(KeyEvent {
             code: KeyCode::Enter,
             ..
-        }) => match turn {
-            Turn::Black => {
-                field[cursor.1][cursor.0] = Masu::Black;
-                auto_reverse(field, *cursor);
-                *turn = Turn::White;
-            }
-            Turn::White => {
-                field[cursor.1][cursor.0] = Masu::White;
-                auto_reverse(field, *cursor);
-                *turn = Turn::Black;
+        }) => {
+            if check_putable(&field, &cursor, &turn) {
+                match turn {
+                    Turn::Black => {
+                        field[cursor.1][cursor.0] = Masu::Black;
+                        auto_reverse(field, *cursor);
+                        *turn = Turn::White;
+                    }
+                    Turn::White => {
+                        field[cursor.1][cursor.0] = Masu::White;
+                        auto_reverse(field, *cursor);
+                        *turn = Turn::Black;
+                    }
+                }
             }
         }
         _ => {}
@@ -100,7 +100,7 @@ fn view<T: std::io::Write>(
     output: &mut T,
     field: &[[Masu; 8]; 8],
     cursor: &(usize, usize),
-    turn: &Turn
+    turn: &Turn,
 ) -> Result<()> {
     execute!(output, MoveTo(0, 0))?;
     for y in 0..8 {
@@ -179,6 +179,46 @@ fn auto_reverse(field: &mut [[Masu; 8]; 8], point: (usize, usize)) {
     }
 }
 
+fn check_putable(field: &[[Masu; 8]; 8], point: &(usize, usize), turn: &Turn) -> bool {
+    let directions = [
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+        (0, -1),
+        (0, 1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+    ];
+    let turn_color = match turn {
+        Turn::Black => Masu::Black,
+        Turn::White => Masu::White,
+    };
+    for direction in directions.iter() {
+        let mut x = point.0 as i32;
+        let mut y = point.1 as i32;
+        let mut reverse_count = 0;
+        let reverse_count = loop {
+            reverse_count += 1;
+            x += direction.0;
+            y += direction.1;
+            if x < 0 || x > 7 || y < 0 || y > 7 {
+                break 0;
+            }
+            if field[y as usize][x as usize] == Masu::Empty {
+                break 0;
+            }
+            if field[y as usize][x as usize] == turn_color {
+                break reverse_count;
+            }
+        };
+        if reverse_count > 1 {
+            return true;
+        }
+    }
+    false
+}
+
 fn main() -> Result<()> {
     let mut field = [[Masu::Empty; 8]; 8];
     init_field(&mut field);
@@ -207,34 +247,60 @@ mod tests {
     #[test]
     fn input_test() {
         let mut field = [[Masu::Empty; 8]; 8];
+        init_field(&mut field);
         let mut cursor = (0, 0);
         let mut end = false;
         let mut turn = Turn::White;
-        let white_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        super::input(white_turn_enter, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(field[0][0] == Masu::White);
         let rightkey = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
         super::input(rightkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(cursor.0 == 1);
         assert!(cursor.1 == 0);
+        let rightkey = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        super::input(rightkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        assert!(cursor.0 == 2);
+        assert!(cursor.1 == 0);
         let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(cursor.0 == 1);
+        assert!(cursor.0 == 2);
         assert!(cursor.1 == 1);
-        let black_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        super::input(black_turn_enter, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(field[1][1] == Masu::Black);
-        let leftkey = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-        super::input(leftkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(cursor.0 == 0);
-        assert!(cursor.1 == 1);
+        let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        assert!(cursor.0 == 2);
+        assert!(cursor.1 == 2);
+        let downkey = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        super::input(downkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        assert!(cursor.0 == 2);
+        assert!(cursor.1 == 3);
+        let white_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        super::input(
+            white_turn_enter,
+            &mut field,
+            &mut cursor,
+            &mut end,
+            &mut turn,
+        )
+        .unwrap();
+        assert!(field[3][2] == Masu::White);
+        assert!(field[3][3] == Masu::White);
         let upkey = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         super::input(upkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(cursor.0 == 0);
-        assert!(cursor.1 == 0);
-        let backspace = Event::Key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
-        super::input(backspace, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
-        assert!(field[0][0] == Masu::Empty);
+        assert!(cursor.0 == 2);
+        assert!(cursor.1 == 2);
+        let black_turn_enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        super::input(
+            black_turn_enter,
+            &mut field,
+            &mut cursor,
+            &mut end,
+            &mut turn,
+        )
+        .unwrap();
+        assert!(field[2][2] == Masu::Black);
+        assert!(field[3][3] == Masu::Black);
+        let leftkey = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        super::input(leftkey, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
+        assert!(cursor.0 == 1);
+        assert!(cursor.1 == 2);
         let esc = Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         super::input(esc, &mut field, &mut cursor, &mut end, &mut turn).unwrap();
         assert!(end);
@@ -285,5 +351,13 @@ mod tests {
         assert!(field[3][5] == Masu::Black);
         assert!(field[3][6] == Masu::Black);
         assert!(field[3][7] == Masu::Black);
+    }
+    #[test]
+    fn check_putable_test() {
+        let mut field = [[Masu::Empty; 8]; 8];
+        init_field(&mut field);
+        let turn = Turn::Black;
+        assert!(!check_putable(&field, &(0, 0), &turn));
+        assert!(check_putable(&field, &(4, 2), &turn));
     }
 }
